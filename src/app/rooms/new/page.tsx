@@ -17,17 +17,13 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { createRoomSchema } from "@/lib/services/supabase/schemas/rooms";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { Controller, useForm } from "react-hook-form";
 import z from "zod";
 
-const formSchema = z.object({
-  name: z.string().min(1).trim(),
-  isPublic: z.boolean(),
-});
-
-type FormData = z.infer<typeof formSchema>;
+type FormData = z.infer<typeof createRoomSchema>;
 
 export default function NewRoomPage() {
   const form = useForm<FormData>({
@@ -35,7 +31,7 @@ export default function NewRoomPage() {
       name: "",
       isPublic: false,
     },
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(createRoomSchema),
   });
 
   function handleSubmit(data: FormData) {
