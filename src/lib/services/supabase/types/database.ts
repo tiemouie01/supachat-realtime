@@ -63,7 +63,7 @@ export type Database = {
             foreignKeyName: "chat_room_member_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
-            referencedRelation: "user_profile"
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -95,7 +95,7 @@ export type Database = {
             foreignKeyName: "messages_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
-            referencedRelation: "user_profile"
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -107,7 +107,7 @@ export type Database = {
           },
         ]
       }
-      user_profile: {
+      user_profiles: {
         Row: {
           created_at: string
           id: string
