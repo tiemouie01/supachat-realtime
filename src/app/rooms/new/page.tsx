@@ -17,10 +17,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { createRoom } from "@/lib/services/supabase/actions/room";
 import { createRoomSchema } from "@/lib/services/supabase/schemas/rooms";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import z from "zod";
 
 type FormData = z.infer<typeof createRoomSchema>;
@@ -34,8 +36,12 @@ export default function NewRoomPage() {
     resolver: zodResolver(createRoomSchema),
   });
 
-  function handleSubmit(data: FormData) {
-    console.log(data);
+  async function handleSubmit(data: FormData) {
+    const { error, message } = await createRoom(data);
+
+    if (error) {
+      toast.error(message || "Failed to create room");
+    }
   }
   return (
     <div className="container mx-auto px-4 py-8">
