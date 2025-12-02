@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatInput } from "@/components/chat-input";
+import { ChatMessage } from "@/components/chat-message";
 import { Message } from "@/lib/services/supabase/actions/messages";
 
 export function RoomClient({
@@ -39,7 +40,7 @@ export function RoomClient({
         }}
       >
         <div>
-          {messages.map((message) => (
+          {messages.toReversed().map((message) => (
             <ChatMessage key={message.id} {...message} />
           ))}
         </div>
@@ -53,14 +54,6 @@ function InviteUserModal({ roomId }: { roomId: string }) {
   return (
     <div>
       <h1>Invite User</h1>
-    </div>
-  );
-}
-
-function ChatMessage(message: Message) {
-  return (
-    <div>
-      <p>{message.text}</p>
     </div>
   );
 }
