@@ -24,7 +24,7 @@ export function JoinRoomButton({
     const supabase = createClient();
     const { error } = await supabase.from("chat_room_member").insert({
       chat_room_id: roomId,
-      user_id: user.id,
+      member_id: user.id,
     });
     if (error) {
       return { error: true, message: "Failed to join room" };

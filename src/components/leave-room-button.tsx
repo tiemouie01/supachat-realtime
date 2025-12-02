@@ -26,12 +26,12 @@ export function LeaveRoomButton({
       .from("chat_room_member")
       .delete()
       .eq("chat_room_id", roomId)
-      .eq("user_id", user.id);
+      .eq("member_id", user.id);
     if (error) {
       return { error: true, message: "Failed to leave room" };
     }
     router.refresh();
-    router.push(`/rooms/${roomId}`);
+
     return { error: false };
   }
   return (
