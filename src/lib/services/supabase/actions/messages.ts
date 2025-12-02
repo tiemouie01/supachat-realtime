@@ -35,10 +35,11 @@ export async function sendMessage(data: {
   const { data: membership, error: membershipError } = await supabase
     .from("chat_room_member")
     .select("member_id")
-    .eq("user_id", user.id)
+    .eq("member_id", user.id)
     .eq("chat_room_id", data.roomId)
     .single();
 
+  console.log(membership, membershipError);
   if (membershipError || !membership) {
     return { error: true, message: "You are not a member of this room" };
   }
