@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/services/supabase/lib/getCurrentUser";
 import { createAdminClient } from "@/lib/services/supabase/server";
 import { notFound } from "next/navigation";
+import { RoomClient } from "./_client";
 
 export default async function RoomPage({
   params,
@@ -14,7 +15,7 @@ export default async function RoomPage({
     getMessages(id),
   ]);
 
-  if (room == null) return notFound();
+  if (room == null || user == null) return notFound();
 
   return <RoomClient room={room} user={user} messages={messages} />;
 }
