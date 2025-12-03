@@ -28,8 +28,6 @@ export function RoomClient({
     userId: user.id,
   });
 
-  console.log(realtimeMessages);
-
   const visibleMessages = messages.toReversed().concat(realtimeMessages);
 
   return (
@@ -78,27 +76,12 @@ function useRealtimeChat({
 
     async function setupChannel() {
       try {
-        // Get the current session to ensure we're authenticated
         const {
           data: { session },
-          error: sessionError,
         } = await supabase.auth.getSession();
 
-        if (sessionError) {
-          console.error("Error getting session:", sessionError);
-          return;
-        }
+        if (!session || cancel) return;
 
-        if (!session) {
-          console.error(
-            "No session found, cannot subscribe to realtime channel"
-          );
-          return;
-        }
-
-        if (cancel) return;
-
-        // Create channel first
         newChannel = supabase.channel(`room:${roomId}:messages`, {
           config: {
             private: true,
@@ -108,7 +91,6 @@ function useRealtimeChat({
           },
         });
 
-        // Set up listeners before subscribing
         newChannel
           .on("presence", { event: "sync" }, () => {
             if (newChannel) {
@@ -116,30 +98,15 @@ function useRealtimeChat({
             }
           })
           .on("broadcast", { event: "INSERT" }, (payload) => {
-            console.log("Full broadcast payload:", payload);
-            // The payload from realtime.send is directly in payload.payload
             const messageData = payload.payload;
-            console.log("Received broadcast messageData:", messageData);
-
-            if (!messageData) {
-              console.error("No message data in payload:", payload);
-              return;
-            }
+            if (!messageData) return;
 
             setMessages((prevMessages) => {
-              // Prevent duplicates by checking if message already exists
               const exists = prevMessages.some(
                 (msg) => msg.id === messageData.id
               );
-              if (exists) {
-                console.log(
-                  "Duplicate message detected, skipping:",
-                  messageData.id
-                );
-                return prevMessages;
-              }
+              if (exists) return prevMessages;
 
-              console.log("Adding new message to state:", messageData);
               return [
                 ...prevMessages,
                 {
@@ -156,25 +123,11 @@ function useRealtimeChat({
             });
           });
 
-        // Set auth before subscribing - let it use the current session automatically
-        console.log("Setting realtime auth");
         await supabase.realtime.setAuth();
 
-        // Now subscribe
-        newChannel.subscribe(async (status, err) => {
-          console.log("Channel subscription status:", status, err);
+        newChannel.subscribe(async (status) => {
           if (status === "SUBSCRIBED" && newChannel) {
-            console.log("Channel subscribed, tracking presence");
             await newChannel.track({ userId });
-          }
-          if (status === "CHANNEL_ERROR") {
-            console.error("Channel error:", err);
-          }
-          if (status === "TIMED_OUT") {
-            console.error("Channel subscription timed out");
-          }
-          if (status === "CLOSED") {
-            console.log("Channel closed");
           }
         });
       } catch (error) {
