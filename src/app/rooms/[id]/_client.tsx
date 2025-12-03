@@ -24,15 +24,26 @@ export function RoomClient({
   };
   messages: Message[];
 }) {
+  const {
+    loadMoreMessages,
+    messages: oldMessages,
+    status,
+    triggerQueryRef,
+  } = useInfiniteScroll({
+    roomId: room.id,
+    startingMessages: messages.toReversed(),
+  });
+
   const { connectedUsers, messages: realtimeMessages } = useRealtimeChat({
     roomId: room.id,
     userId: user.id,
   });
+
   const [sentMessages, setSentMessages] = useState<
     (Message & { status: "pending" | "error" | "success" })[]
   >([]);
 
-  const visibleMessages = messages.toReversed().concat(
+  const visibleMessages = oldMessages.toReversed().concat(
     realtimeMessages,
     sentMessages.filter((m) => !realtimeMessages.find((rm) => rm.id === m.id))
   );
@@ -56,8 +67,12 @@ export function RoomClient({
         }}
       >
         <div>
-          {visibleMessages.map((message) => (
-            <ChatMessage key={message.id} {...message} />
+          {visibleMessages.map((message, index) => (
+            <ChatMessage
+              key={message.id}
+              {...message}
+              ref={index === 0 && status === "idle" ? triggerQueryRef : null}
+            />
           ))}
         </div>
       </div>
@@ -185,4 +200,67 @@ function useRealtimeChat({
   }, [roomId, userId]);
 
   return { connectedUsers, messages };
+}
+
+const LIMIT = 25;
+function useInfiniteScroll({
+  startingMessages,
+  roomId,
+}: {
+  startingMessages: Message[];
+  roomId: string;
+}) {
+  const [messages, setMessages] = useState<Message[]>(startingMessages);
+  const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">(
+    startingMessages.length === 0 ? "done" : "idle"
+  );
+
+  async function loadMoreMessages() {
+    if (status === "done") return;
+    const supabase = createClient();
+    setStatus("loading");
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select(
+        "id, text, created_at, author_id, author:user_profiles (name, image_url)"
+      )
+      .eq("chat_room_id", roomId)
+      .lt("created_at", messages[0].created_at)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+
+    if (error) {
+      setStatus("error");
+      return;
+    }
+
+    setMessages((prevMessages) => [...data, ...prevMessages]);
+    setStatus(data.length < LIMIT ? "done" : "idle");
+  }
+
+  function triggerQueryRef(node: HTMLDivElement | null) {
+    if (node === null) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.target === node) {
+            observer.unobserve(node);
+            loadMoreMessages();
+          }
+        });
+      },
+      {
+        rootMargin: "50px",
+      }
+    );
+
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }
+
+  return { loadMoreMessages, messages, status, triggerQueryRef };
 }
