@@ -27,8 +27,14 @@ export function RoomClient({
     roomId: room.id,
     userId: user.id,
   });
+  const [sentMessages, setSentMessages] = useState<
+    (Message & { status: "pending" | "error" | "success" })[]
+  >([]);
 
-  const visibleMessages = messages.toReversed().concat(realtimeMessages);
+  const visibleMessages = messages.toReversed().concat(
+    realtimeMessages,
+    sentMessages.filter((m) => !realtimeMessages.find((rm) => rm.id === m.id))
+  );
 
   return (
     <div className="container mx-auto h-screen-with-header border border-y-0 flex flex-col">
@@ -54,7 +60,37 @@ export function RoomClient({
           ))}
         </div>
       </div>
-      <ChatInput roomId={room.id} />
+      <ChatInput
+        roomId={room.id}
+        onSend={(message) =>
+          setSentMessages((prev) => [
+            ...prev,
+            {
+              id: message.id,
+              text: message.text,
+              created_at: new Date().toISOString(),
+              author_id: user.id,
+              author: {
+                name: user.name,
+                image_url: user.image_url,
+              },
+              status: "pending",
+            },
+          ])
+        }
+        onSuccessfulSend={(message) =>
+          setSentMessages((prev) =>
+            prev.map((m) =>
+              m.id === message.id ? { ...message, status: "success" } : m
+            )
+          )
+        }
+        onErrorSend={(id) =>
+          setSentMessages((prev) =>
+            prev.map((m) => (m.id === id ? { ...m, status: "error" } : m))
+          )
+        }
+      />
     </div>
   );
 }

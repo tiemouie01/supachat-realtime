@@ -9,26 +9,43 @@ import {
 } from "./ui/input-group";
 import { SendIcon } from "lucide-react";
 import { toast } from "sonner";
-import { sendMessage } from "@/lib/services/supabase/actions/messages";
+import { Message, sendMessage } from "@/lib/services/supabase/actions/messages";
 
-export function ChatInput({ roomId }: { roomId: string }) {
+type Props = {
+  roomId: string;
+  onSend: (message: { id: string; text: string }) => void;
+  onSuccessfulSend: (message: Message) => void;
+  onErrorSend: (id: string) => void;
+};
+
+export function ChatInput({
+  roomId,
+  onSend,
+  onSuccessfulSend,
+  onErrorSend,
+}: Props) {
   const [message, setMessage] = useState("");
 
   async function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
-    setMessage("");
+    const id = crypto.randomUUID();
     const text = message.trim();
+
+    setMessage("");
     if (!text) return;
+    onSend({ id, text });
 
     const result = await sendMessage({
+      id,
       roomId,
       text,
     });
 
     if (result.error) {
       toast.error(result.message);
+      onErrorSend(id);
     } else {
-      //   result.
+      onSuccessfulSend(result.message);
     }
   }
 
