@@ -39,7 +39,6 @@ export async function sendMessage(data: {
     .eq("chat_room_id", data.roomId)
     .single();
 
-  console.log(membership, membershipError);
   if (membershipError || !membership) {
     return { error: true, message: "You are not a member of this room" };
   }
@@ -57,6 +56,7 @@ export async function sendMessage(data: {
     .single();
 
   if (error) {
+    console.error(error);
     return { error: true, message: "Failed to send message" };
   }
 

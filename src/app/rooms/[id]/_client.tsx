@@ -4,6 +4,7 @@ import { ChatInput } from "@/components/chat-input";
 import { ChatMessage } from "@/components/chat-message";
 import { Message } from "@/lib/services/supabase/actions/messages";
 import { createClient } from "@/lib/services/supabase/client";
+import { RealtimeChannel } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 
 export function RoomClient({
@@ -22,10 +23,15 @@ export function RoomClient({
   };
   messages: Message[];
 }) {
-  const { connectedUsers } = useRealtimeChat({
+  const { connectedUsers, messages: realtimeMessages } = useRealtimeChat({
     roomId: room.id,
     userId: user.id,
   });
+
+  console.log(realtimeMessages);
+
+  const visibleMessages = messages.toReversed().concat(realtimeMessages);
+
   return (
     <div className="container mx-auto h-screen-with-header border border-y-0 flex flex-col">
       <div className="flex items-center justify-between gap-2">
@@ -45,20 +51,12 @@ export function RoomClient({
         }}
       >
         <div>
-          {messages.toReversed().map((message) => (
+          {visibleMessages.map((message) => (
             <ChatMessage key={message.id} {...message} />
           ))}
         </div>
       </div>
       <ChatInput roomId={room.id} />
-    </div>
-  );
-}
-
-function InviteUserModal({ roomId }: { roomId: string }) {
-  return (
-    <div>
-      <h1>Invite User</h1>
     </div>
   );
 }
@@ -75,28 +73,124 @@ function useRealtimeChat({
 
   useEffect(() => {
     const supabase = createClient();
-    const newChannel = supabase.channel(`room:${roomId}:messages`, {
-      config: {
-        private: true,
-        presence: {
-          key: userId,
-        },
-      },
-    });
+    let newChannel: RealtimeChannel | null = null;
+    let cancel = false;
 
-    newChannel
-      .on("presence", { event: "sync" }, () => {
-        setConnectedUsers(Object.keys(newChannel.presenceState()).length);
-      })
-      .subscribe((status) => {
-        if (status !== "SUBSCRIBED") return;
+    async function setupChannel() {
+      try {
+        // Get the current session to ensure we're authenticated
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-        newChannel.track({ userId });
-      });
+        if (sessionError) {
+          console.error("Error getting session:", sessionError);
+          return;
+        }
+
+        if (!session) {
+          console.error(
+            "No session found, cannot subscribe to realtime channel"
+          );
+          return;
+        }
+
+        if (cancel) return;
+
+        // Create channel first
+        newChannel = supabase.channel(`room:${roomId}:messages`, {
+          config: {
+            private: true,
+            presence: {
+              key: userId,
+            },
+          },
+        });
+
+        // Set up listeners before subscribing
+        newChannel
+          .on("presence", { event: "sync" }, () => {
+            if (newChannel) {
+              setConnectedUsers(Object.keys(newChannel.presenceState()).length);
+            }
+          })
+          .on("broadcast", { event: "INSERT" }, (payload) => {
+            console.log("Full broadcast payload:", payload);
+            // The payload from realtime.send is directly in payload.payload
+            const messageData = payload.payload;
+            console.log("Received broadcast messageData:", messageData);
+
+            if (!messageData) {
+              console.error("No message data in payload:", payload);
+              return;
+            }
+
+            setMessages((prevMessages) => {
+              // Prevent duplicates by checking if message already exists
+              const exists = prevMessages.some(
+                (msg) => msg.id === messageData.id
+              );
+              if (exists) {
+                console.log(
+                  "Duplicate message detected, skipping:",
+                  messageData.id
+                );
+                return prevMessages;
+              }
+
+              console.log("Adding new message to state:", messageData);
+              return [
+                ...prevMessages,
+                {
+                  id: messageData.id,
+                  text: messageData.text,
+                  created_at: messageData.created_at,
+                  author_id: messageData.author_id,
+                  author: {
+                    name: messageData.author_name,
+                    image_url: messageData.author_image_url,
+                  },
+                },
+              ];
+            });
+          });
+
+        // Set auth before subscribing - let it use the current session automatically
+        console.log("Setting realtime auth");
+        await supabase.realtime.setAuth();
+
+        // Now subscribe
+        newChannel.subscribe(async (status, err) => {
+          console.log("Channel subscription status:", status, err);
+          if (status === "SUBSCRIBED" && newChannel) {
+            console.log("Channel subscribed, tracking presence");
+            await newChannel.track({ userId });
+          }
+          if (status === "CHANNEL_ERROR") {
+            console.error("Channel error:", err);
+          }
+          if (status === "TIMED_OUT") {
+            console.error("Channel subscription timed out");
+          }
+          if (status === "CLOSED") {
+            console.log("Channel closed");
+          }
+        });
+      } catch (error) {
+        console.error("Error setting up realtime channel:", error);
+      }
+    }
+
+    setupChannel();
 
     return () => {
-      newChannel.untrack();
-      newChannel.unsubscribe();
+      cancel = true;
+      if (newChannel) {
+        newChannel.untrack();
+        newChannel.unsubscribe();
+        supabase.removeChannel(newChannel);
+      }
     };
   }, [roomId, userId]);
 
