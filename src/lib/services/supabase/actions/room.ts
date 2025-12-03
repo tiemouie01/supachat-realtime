@@ -42,3 +42,60 @@ export async function createRoom(unsafeData: z.infer<typeof createRoomSchema>) {
 
   redirect(`/rooms/${room.id}`);
 }
+
+export async function addUserToRoom({
+  roomId,
+  userId,
+}: {
+  roomId: string;
+  userId: string;
+}) {
+  const currentUser = await getCurrentUser();
+  if (currentUser == null) {
+    return { error: true, message: "User not authenticated" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: roomMembership, error: roomMembershipError } = await supabase
+    .from("chat_room_member")
+    .select("member_id")
+    .eq("member_id", currentUser.id)
+    .eq("chat_room_id", roomId)
+    .single();
+
+  if (roomMembershipError || roomMembership == null) {
+    return { error: true, message: "You are not a member of this room" };
+  }
+
+  const { data: userProfile, error: userProfileError } = await supabase
+    .from("user_profiles")
+    .select("id")
+    .eq("id", userId)
+    .single();
+
+  if (userProfileError || userProfile == null) {
+    return { error: true, message: "User not found" };
+  }
+
+  const { data: existingMembership } = await supabase
+    .from("chat_room_member")
+    .select("member_id")
+    .eq("member_id", userId)
+    .eq("chat_room_id", roomId)
+    .single();
+
+  if (existingMembership) {
+    return { error: true, message: "User is already a member of this room" };
+  }
+
+  const { error: insertError } = await supabase
+    .from("chat_room_member")
+    .insert({ chat_room_id: roomId, member_id: userId });
+
+  if (insertError) {
+    return { error: true, message: "Failed to add user to room" };
+  }
+
+  return { error: false, message: "User added to room successfully" };
+}
